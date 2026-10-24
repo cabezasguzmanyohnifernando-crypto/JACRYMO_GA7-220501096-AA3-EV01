@@ -1,0 +1,13 @@
+
+{
+  "name": "jacrymo-aa3-ev01",
+  "version": "1.0.0",
+  "description": "Modulo web de productos e inventario de JACRYMO",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}

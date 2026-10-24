@@ -1,0 +1,387 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>JACRYMO - Gestión de Inventario</title>
+
+  <style>
+    /* Estilos generales de la aplicación. */
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #f2f5f9;
+      color: #263238;
+    }
+
+    header {
+      background-color: #1e88e5;
+      color: white;
+      padding: 22px;
+      text-align: center;
+    }
+
+    header h1 {
+      margin: 0 0 8px;
+    }
+
+    main {
+      width: 92%;
+      max-width: 1000px;
+      margin: 30px auto;
+    }
+
+    .panel {
+      background-color: white;
+      padding: 22px;
+      margin-bottom: 22px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px #00000012;
+    }
+
+    .formulario {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 15px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: bold;
+    }
+
+    input {
+      width: 100%;
+      padding: 11px;
+      border: 1px solid #b0bec5;
+      border-radius: 5px;
+    }
+
+    button {
+      padding: 10px 14px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      background-color: #1e88e5;
+      color: white;
+      font-weight: bold;
+    }
+
+    button:hover {
+      background-color: #1565c0;
+    }
+
+    .acciones {
+      display: flex;
+      align-items: end;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .eliminar {
+      background-color: #d32f2f;
+    }
+
+    .eliminar:hover {
+      background-color: #b71c1c;
+    }
+
+    .tabla-contenedor {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+
+    th, td {
+      padding: 12px;
+      border-bottom: 1px solid #e0e0e0;
+      text-align: left;
+    }
+
+    th {
+      background-color: #e3f2fd;
+    }
+
+    #mensaje {
+      margin-top: 15px;
+      font-weight: bold;
+    }
+
+    footer {
+      text-align: center;
+      padding: 20px;
+      color: #546e7a;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>JACRYMO</h1>
+    <p>Sistema de Gestión de Ventas y Control de Inventario</p>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>Registro de productos</h2>
+      <p>Ingrese la información del producto de calzado.</p>
+
+      <form id="formularioProducto">
+        <div class="formulario">
+          <div>
+            <label for="nombre">Nombre del producto</label>
+            <input id="nombre" name="nombre" type="text"
+              maxlength="100" required>
+          </div>
+
+          <div>
+            <label for="precio">Precio (COP)</label>
+            <input id="precio" name="precio" type="number"
+              min="0.01" step="0.01" required>
+          </div>
+
+          <div>
+            <label for="stock">Cantidad disponible</label>
+            <input id="stock" name="stock" type="number"
+              min="0" step="1" required>
+          </div>
+
+          <div class="acciones">
+            <button type="submit" id="botonGuardar">
+              Registrar producto
+            </button>
+            <button type="button" id="botonCancelar" hidden>
+              Cancelar edición
+            </button>
+          </div>
+        </div>
+      </form>
+
+      <p id="mensaje" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="panel">
+      <h2>Inventario de productos</h2>
+
+      <div class="tabla-contenedor">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Producto</th>
+              <th>Precio</th>
+              <th>Stock</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+
+          <tbody id="listaProductos">
+            <tr>
+              <td colspan="5">Cargando productos...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>JACRYMO - Módulo de Productos e Inventario - Versión 1.0</p>
+  </footer>
+
+  <script>
+    // Referencias a los elementos del formulario.
+    const formulario = document.getElementById('formularioProducto');
+    const listaProductos = document.getElementById('listaProductos');
+    const mensaje = document.getElementById('mensaje');
+    const botonGuardar = document.getElementById('botonGuardar');
+    const botonCancelar = document.getElementById('botonCancelar');
+
+    // Conserva el identificador del producto que se está editando.
+    let idProductoEdicion = null;
+
+    // Consulta los productos guardados en el servidor.
+    async function cargarProductos() {
+      try {
+        const respuesta = await fetch('/api/productos');
+
+        if (!respuesta.ok) {
+          throw new Error('No fue posible consultar el inventario.');
+        }
+
+        const productos = await respuesta.json();
+        listaProductos.replaceChildren();
+
+        if (productos.length === 0) {
+          const fila = document.createElement('tr');
+          const celda = document.createElement('td');
+          celda.colSpan = 5;
+          celda.textContent = 'No hay productos registrados.';
+          fila.appendChild(celda);
+          listaProductos.appendChild(fila);
+          return;
+        }
+
+        // Crea las filas de la tabla usando los datos recibidos.
+        productos.forEach((producto) => {
+          const fila = document.createElement('tr');
+
+          [
+            producto.idProducto,
+            producto.nombre,
+            Number(producto.precio).toLocaleString('es-CO', {
+              style: 'currency',
+              currency: 'COP'
+            }),
+            producto.stock
+          ].forEach((valor) => {
+            const celda = document.createElement('td');
+            celda.textContent = valor;
+            fila.appendChild(celda);
+          });
+
+          const celdaAcciones = document.createElement('td');
+          const botonEditar = document.createElement('button');
+          botonEditar.textContent = 'Editar';
+
+          botonEditar.addEventListener('click', () => {
+            editarProducto(producto);
+          });
+
+          const botonEliminar = document.createElement('button');
+          botonEliminar.textContent = 'Eliminar';
+          botonEliminar.className = 'eliminar';
+
+          botonEliminar.addEventListener('click', () => {
+            eliminarProducto(producto.idProducto);
+          });
+
+          celdaAcciones.append(botonEditar, botonEliminar);
+          fila.appendChild(celdaAcciones);
+          listaProductos.appendChild(fila);
+        });
+      } catch (error) {
+        mostrarMensaje(error.message, true);
+      }
+    }
+
+    // Registra un producto nuevo o actualiza uno existente.
+    formulario.addEventListener('submit', async (evento) => {
+      evento.preventDefault();
+
+      const producto = {
+        nombre: document.getElementById('nombre').value.trim(),
+        precio: Number(document.getElementById('precio').value),
+        stock: Number(document.getElementById('stock').value)
+      };
+
+      if (
+        !producto.nombre ||
+        !Number.isFinite(producto.precio) ||
+        producto.precio <= 0 ||
+        !Number.isInteger(producto.stock) ||
+        producto.stock < 0
+      ) {
+        mostrarMensaje('Verifique los datos ingresados.', true);
+        return;
+      }
+
+      const editando = idProductoEdicion !== null;
+      const url = editando
+        ? `/api/productos/${idProductoEdicion}`
+        : '/api/productos';
+
+      try {
+        const respuesta = await fetch(url, {
+          method: editando ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(producto)
+        });
+
+        const resultado = await respuesta.json();
+
+        if (!respuesta.ok) {
+          throw new Error(resultado.mensaje || 'No se pudo guardar.');
+        }
+
+        mostrarMensaje(resultado.mensaje);
+        formulario.reset();
+        cancelarEdicion();
+        await cargarProductos();
+      } catch (error) {
+        mostrarMensaje(error.message, true);
+      }
+    });
+
+    // Carga los datos del producto seleccionado en el formulario.
+    function editarProducto(producto) {
+      idProductoEdicion = producto.idProducto;
+      document.getElementById('nombre').value = producto.nombre;
+      document.getElementById('precio').value = producto.precio;
+      document.getElementById('stock').value = producto.stock;
+
+      botonGuardar.textContent = 'Guardar cambios';
+      botonCancelar.hidden = false;
+      mostrarMensaje(`Editando producto ${producto.idProducto}.`);
+      document.getElementById('nombre').focus();
+    }
+
+    // Elimina el producto seleccionado después de confirmar.
+    async function eliminarProducto(id) {
+      if (!confirm(`¿Desea eliminar el producto ${id}?`)) {
+        return;
+      }
+
+      try {
+        const respuesta = await fetch(`/api/productos/${id}`, {
+          method: 'DELETE'
+        });
+
+        const resultado = await respuesta.json();
+
+        if (!respuesta.ok) {
+          throw new Error(resultado.mensaje || 'No se pudo eliminar.');
+        }
+
+        mostrarMensaje(resultado.mensaje);
+        await cargarProductos();
+      } catch (error) {
+        mostrarMensaje(error.message, true);
+      }
+    }
+
+    // Restablece el formulario para registrar un producto nuevo.
+    function cancelarEdicion() {
+      idProductoEdicion = null;
+      botonGuardar.textContent = 'Registrar producto';
+      botonCancelar.hidden = true;
+    }
+
+    botonCancelar.addEventListener('click', () => {
+      formulario.reset();
+      cancelarEdicion();
+      mostrarMensaje('Edición cancelada.');
+    });
+
+    // Muestra mensajes de éxito o de error al usuario.
+    function mostrarMensaje(texto, esError = false) {
+      mensaje.textContent = texto;
+      mensaje.style.color = esError ? '#c62828' : '#2e7d32';
+    }
+
+    // Carga el inventario al abrir la página.
+    cargarProductos();
+  </script>
+</body>
+</html>
